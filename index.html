@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Cartões (Nuvem)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Incluindo o SDK do Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 font-sans p-4 max-w-md mx-auto">
+
+    <h1 class="text-2xl font-bold text-center my-4 text-gray-800">💳 Meus Cartões e Gastos</h1>
+
+    <!-- ABAS -->
+    <div class="flex border-b border-gray-200 mb-4 bg-white rounded-t-lg shadow-sm">
+        <button onclick="mudarAba('faturas')" id="btn-faturas" class="w-1/3 py-3 text-center font-medium text-blue-600 border-b-2 border-blue-600">📊 Faturas</button>
+        <button onclick="mudarAba('gastos')" id="btn-gastos" class="w-1/3 py-3 text-center font-medium text-gray-500">🛍️ Gasto</button>
+        <button onclick="mudarAba('cadastro')" id="btn-cadastro" class="w-1/3 py-3 text-center font-medium text-gray-500">📂 Cartões</button>
+    </div>
+
+    <!-- ABA 1: FATURAS -->
+    <div id="aba-faturas" class="space-y-4">
+        <div class="bg-white p-4 rounded-lg shadow-md flex gap-2">
+            <select id="filtro-ano" onchange="atualizarFaturas()" class="w-1/2 p-2 border rounded-md bg-gray-50"></select>
+            <select id="filtro-mes" onchange="atualizarFaturas()" class="w-1/2 p-2 border rounded-md bg-gray-50"></select>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-md text-center">
+            <p class="text-sm text-gray-500 font-medium uppercase tracking-wider">Total no Mês</p>
+            <p id="total-mes" class="text-3xl font-black text-gray-800 mt-1">R$ 0,00</p>
+        </div>
+        
+        <!-- Lista de Faturas por Cartão -->
+        <div id="lista-faturas" class="space-y-3"></div>
+    </div>
+
+    <!-- ABA 2: NOVO GASTO / EDIÇÃO -->
+    <div id="aba-gastos" class="hidden bg-white p-5 rounded-lg shadow-md space-y-4">
+        <h2 id="titulo-form-gasto" class="text-lg font-bold text-gray-700">Lançar Novo Gasto</h2>
+        <input type="hidden" id="gasto-id">
+        <div>
+            <label class="block text-sm font-medium text-gray-600">Cartão</label>
+            <select id="gasto-cartao" class="w-full p-2.5 border rounded-md mt-1 bg-gray-50"></select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-600">Descrição</label>
+            <input type="text" id="gasto-descricao" placeholder="Ex: Netflix" class="w-full p-2.5 border rounded-md mt-1">
+        </div>
+        <div class="flex gap-2 items-start">
+            <div class="w-1/2">
+                <label class="block text-sm font-medium text-gray-600">Valor (R$)</label>
+                <input type="number" id="gasto-valor" step="0.01" placeholder="0.00" class="w-full p-2.5 border rounded-md mt-1">
+            </div>
+            <div class="w-1/2">
+                <label class="block text-sm font-medium text-gray-600">Parcelas</label>
+                <input type="number" id="gasto-parcelas" value="1" min="0" class="w-full p-2.5 border rounded-md mt-1">
+                <label class="inline-flex items-center mt-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input type="checkbox" id="gasto-recorrente" onchange="alternarRecorrencia(this)" class="mr-1 rounded text-blue-600"> É assinatura / fixo?
+                </label>
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-600">Data da Compra / Início</label>
+            <input type="date" id="gasto-data" class="w-full p-2.5 border rounded-md mt-1 bg-gray-50">
+        </div>
+        <div class="flex gap-2">
+            <button onclick="salvarGasto()" id="btn-salvar-gasto" class="w-full bg-blue-600 text-white p-3 rounded-md font-bold shadow-sm hover:bg-blue-700 transition">Confirmar Gasto</button>
+            <button onclick="cancelarEdicao()" id="btn-cancelar-gasto" class="hidden w-1/3 bg-gray-300 text-gray-700 p-3 rounded-md font-bold shadow-sm hover:bg-gray-400 transition">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- ABA 3: CADASTRO DE CARTÕES -->
+    <div id="aba-cadastro" class="hidden bg-white p-5 rounded-lg shadow-md space-y-4">
+        <h2 class="text-lg font-bold text-gray-700">Gerenciar Cartões</h2>
+        <div class="space-y-3 bg-gray-50 p-3 rounded-md border">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase">Nome do Cartão</label>
+                <input type="text" id="novo-cartao" placeholder="Ex: NuBank" class="w-full p-2 border rounded-md mt-1 bg-white">
+            </div>
+            <div class="flex gap-2">
+                <div class="w-1/2">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase">Dia Fechamento</label>
+                    <input type="number" id="cartao-fechamento" min="1" max="31" placeholder="Ex: 5" class="w-full p-2 border rounded-md mt-1 bg-white">
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase">Dia Vencimento</label>
+                    <input type="number" id="cartao-vencimento" min="1" max="31" placeholder="Ex: 12" class="w-full p-2 border rounded-md mt-1 bg-white">
+                </div>
+            </div>
+            <button onclick="adicionarCartao()" class="w-full bg-green-600 text-white p-2 rounded-md font-bold hover:bg-green-700 transition text-sm">Adicionar Cartão</button>
+        </div>
+        
+        <div class="pt-2">
+            <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Cartões Cadastrados</h3>
+            <div id="lista-cartoes" class="divide-y border rounded-md bg-white px-3"></div>
+        </div>
+    </div>
+
+    <script>
+        // === PREENCHA COM AS CREDENCIAIS DO SEU PROJETO SUPABASE ===
+        const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
+        const SUPABASE_KEY = "SUA-CHAVE-ANON-KEY";
+        
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let cartoes = [];
+        let gastos = [];
+        let faturasAbertas = {}; 
+        
+        const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        const hoje = new Date();
+
+        const filtroAno = document.getElementById('filtro-ano');
+        [2026, 2027, 2028].forEach(ano => {
+            filtroAno.add(new Option(ano, ano));
+        });
+        filtroAno.value = hoje.getFullYear();
+
+        const filtroMes = document.getElementById('filtro-mes');
+        mesesNomes.forEach((mes, idx) => {
+            filtroMes.add(new Option(mes, idx + 1));
+        });
+        filtroMes.value = hoje.getMonth() + 1;
+
+        function resetarDataGasto() {
+            const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(Date.now() - tzoffset)).toISOString().slice(0, 10);
+            document.getElementById('gasto-data').value = localISOTime;
+        }
+
+        async function inicializarApp() {
+            resetarDataGasto();
+            await carregarDadosDaNuvem();
+            await realizarMigracaoLocalParaNuvem();
+        }
+
+        async function carregarDadosDaNuvem() {
+            const { data: resCartoes } = await _supabase.from('cartoes').select('*').order('nome');
+            const { data: resGastos } = await _supabase.from('gastos').select('*');
+            
+            cartoes = resCartoes || [];
+            gastos = resGastos || [];
+            
+            atualizarInterfaceCartoes();
+            atualizarFaturas();
+        }
+
+        async function realizarMigracaoLocalParaNuvem() {
+            let localCartoes = JSON.parse(localStorage.getItem('cartoes_v3')) || JSON.parse(localStorage.getItem('cartoes_v2')) || JSON.parse(localStorage.getItem('cartoes')) || [];
+            let localGastos = JSON.parse(localStorage.getItem('gastos_v3')) || JSON.parse(localStorage.getItem('gastos_v2')) || JSON.parse(localStorage.getItem('gastos')) || [];
+
+            if (localCartoes.length > 0 && cartoes.length === 0) {
+                const cartoesFormatados = localCartoes.map(c => ({ nome: c.nome, fechamento: parseInt(c.fechamento), vencimento: parseInt(c.vencimento) }));
+                await _supabase.from('cartoes').insert(cartoesFormatados);
+                localStorage.removeItem('cartoes'); localStorage.removeItem('cartoes_v2'); localStorage.removeItem('cartoes_v3');
+            }
+
+            if (localGastos.length > 0 && gastos.length === 0) {
+                const gastosFormatados = localGastos.map(g => ({ cartao: g.cartao, descricao: g.descricao, valor: parseFloat(g.valor), parcelas: parseInt(g.parcelas), data: g.data }));
+                await _supabase.from('gastos').insert(gastosFormatados);
+                localStorage.removeItem('gastos'); localStorage.removeItem('gastos_v2'); localStorage.removeItem('gastos_v3');
+            }
+
+            if (localCartoes.length > 0 || localGastos.length > 0) {
+                await carregarDadosDaNuvem();
+            }
+        }
+
+        function mudarAba(aba) {
+            ['faturas', 'gastos', 'cadastro'].forEach(a => {
+                document.getElementById(`aba-${a}`).classList.add('hidden');
+                document.getElementById(`btn-${a}`).className = "w-1/3 py-3 text-center font-medium text-gray-500";
+            });
+            document.getElementById(`aba-${aba}`).classList.remove('hidden');
+            document.getElementById(`btn-${aba}`).className = "w-1/3 py-3 text-center font-medium text-blue-600 border-b-2 border-blue-600";
+            
+            if(aba === 'faturas') {
+                atualizarFaturas();
+            } else if (aba === 'gastos') {
+                atualizarMenuCartoes();
+                if (!document.getElementById('gasto-id').value) {
+                    resetarDataGasto();
+                }
+            }
+        }
+
+        function alternarRecorrencia(checkbox) {
+            const inputParcelas = document.getElementById('gasto-parcelas');
+            if (checkbox.checked) {
+                inputParcelas.value = 0;
+                inputParcelas.disabled = true;
+                inputParcelas.classList.add('bg-gray-100', 'text-gray-400');
+            } else {
+                inputParcelas.value = 1;
+                inputParcelas.disabled = false;
+                inputParcelas.classList.remove('bg-gray-100', 'text-gray-400');
+            }
+        }
+
+        function atualizarMenuCartoes() {
+            const selectGasto = document.getElementById('gasto-cartao');
+            const valorSelecionado = selectGasto.value;
+            selectGasto.innerHTML = '';
+            cartoes.forEach(c => {
+                selectGasto.add(new Option(c.nome, c.nome));
+            });
+            if (valorSelecionado) selectGasto.value = valorSelecionado;
+        }
+
+        function atualizarInterfaceCartoes() {
+            const lista = document.getElementById('lista-cartoes');
+            lista.innerHTML = '';
+            
+            if (cartoes.length === 0) {
+                lista.innerHTML = `<p class="text-sm text-gray-400 py-3 text-center">Nenhum cartão cadastrado.</p>`;
+            }
+
+            cartoes.forEach((c) => {
+                lista.innerHTML += `
+                    <div class="py-3 flex justify-between items-center text-gray-700 font-medium">
+                        <div>
+                            <p class="font-bold">💳 ${c.nome}</p>
+                            <p class="text-xs text-gray-400">Fecha dia ${c.fechamento} | Vence dia ${c.vencimento}</p>
+                        </div>
+                        <button onclick="removerCartao(${c.id}, '${c.nome}')" class="text-red-500 text-xs font-bold border border-red-200 px-2 py-1 rounded hover:bg-red-50">Excluir</button>
+                    </div>`;
+            });
+            atualizarMenuCartoes();
+        }
+
+        async function adicionarCartao() {
+            const inputNome = document.getElementById('novo-cartao');
+            const inputFechamento = document.getElementById('cartao-fechamento');
+            const inputVencimento = document.getElementById('cartao-vencimento');
+
+            const nome = inputNome.value.trim();
+            const fechamento = parseInt(inputFechamento.value);
+            const vencimento = parseInt(inputVencimento.value);
+
+            if (!nome || isNaN(fechamento) || isNaN(vencimento) || fechamento < 1 || fechamento > 31 || vencimento < 1 || vencimento > 31) {
+                alert('Preencha o nome e os dias (1 a 31) corretamente.');
+                return;
+            }
+
+            if (cartoes.some(c => c.nome.toLowerCase() === nome.toLowerCase())) {
+                alert('Este cartão já existe.');
+                return;
+            }
+
+            await _supabase.from('cartoes').insert([{ nome, fechamento, vencimento }]);
+            
+            inputNome.value = '';
+            inputFechamento.value = '';
+            inputVencimento.value = '';
+            
+            await carregarDadosDaNuvem();
+        }
+
+        async function removerCartao(id, nome) {
+            if (confirm(`Deseja mesmo remover o cartão "${nome}"? Os gastos dele continuarão salvos.`)) {
+                await _supabase.from('cartoes').delete().eq('id', id);
+                await carregarDadosDaNuvem();
+            }
+        }
+
+        async function salvarGasto() {
+            const idGasto = document.getElementById('gasto-id').value;
+            const cartao = document.getElementById('gasto-cartao').value;
+            const descricao = document.getElementById('gasto-descricao').value.trim();
+            const valor = parseFloat(document.getElementById('gasto-valor').value);
+            const parcelas = parseInt(document.getElementById('gasto-parcelas').value);
+            const dataStr = document.getElementById('gasto-data').value;
+
+            if (!cartao) {
+                alert('Cadastre e selecione um cartão primeiro.');
+                return;
+            }
+
+            if (!descricao || isNaN(valor) || isNaN(parcelas)) {
+                alert('Preencha todos os campos corretamente.');
+                return;
+            }
+
+            const dadosGasto = { cartao, descricao, valor, parcelas, data: dataStr };
+
+            if (idGasto !== "") {
+                await _supabase.from('gastos').update(dadosGasto).eq('id', parseInt(idGasto));
+                alert('Gasto atualizado!');
+            } else {
+                await _supabase.from('gastos').insert([dadosGasto]);
+                alert('Gasto registrado!');
+            }
+
+            cancelarEdicao();
+            await carregarDadosDaNuvem();
+            mudarAba('faturas');
+        }
+
+        function editarGasto(idGasto, indexMemoria) {
+            const gasto = gastos.find(g => g.id === idGasto);
+            if(!gasto) return;
+
+            atualizarMenuCartoes();
+
+            document.getElementById('gasto-id').value = gasto.id;
+            document.getElementById('gasto-cartao').value = gasto.cartao;
+            document.getElementById('gasto-descricao').value = gasto.descricao;
+            document.getElementById('gasto-valor').value = gasto.valor;
+            document.getElementById('gasto-parcelas').value = gasto.parcelas;
+            document.getElementById('gasto-data').value = gasto.data;
+
+            const checkRecorrente = document.getElementById('gasto-recorrente');
+            if (gasto.parcelas === 0) {
+                checkRecorrente.checked = true;
+                alternarRecorrencia(checkRecorrente);
+            } else {
+                checkRecorrente.checked = false;
+                alternarRecorrencia(checkRecorrente);
+            }
+
+            document.getElementById('titulo-form-gasto').innerText = "✏️ Editar Gasto";
+            document.getElementById('btn-salvar-gasto').innerText = "Salvar Alterações";
+            document.getElementById('btn-cancelar-gasto').classList.remove('hidden');
+
+            mudarAba('gastos');
+        }
+
+        async function excluirGasto(idGasto) {
+            if (confirm("Tem certeza que deseja apagar permanentemente este gasto?")) {
+                await _supabase.from('gastos').delete().eq('id', idGasto);
+                await carregarDadosDaNuvem();
+            }
+        }
+
+        function cancelarEdicao() {
+            document.getElementById('gasto-id').value = "";
+            document.getElementById('gasto-descricao').value = '';
+            document.getElementById('gasto-valor').value = '';
+            document.getElementById('gasto-parcelas').value = '1';
+            
+            const checkRecorrente = document.getElementById('gasto-recorrente');
+            checkRecorrente.checked = false;
+            alternarRecorrencia(checkRecorrente);
+
+            document.getElementById('titulo-form-gasto').innerText = "Lançar Novo Gasto";
+            document.getElementById('btn-salvar-gasto').innerText = "Confirmar Gasto";
+            document.getElementById('btn-cancelar-gasto').classList.add('hidden');
+            resetarDataGasto();
+            mudarAba('faturas');
+        }
+
+        function alternarAbaFatura(nomeCartao) {
+            faturasAbertas[nomeCartao] = !faturasAbertas[nomeCartao];
+            atualizarFaturas();
+        }
+
+        function formatarDataBR(dataString) {
+            const partes = dataString.split('-');
+            return `${partes[2]}/${partes[1]}/${partes[0].substring(2)}`;
+        }
+
+        function atualizarFaturas() {
+            const anoSel = parseInt(filtroAno.value);
+            const mesSel = parseInt(filtroMes.value);
+            const container = document.getElementById('lista-faturas');
+            container.innerHTML = '';
+            
+            let totalGeralMundo = 0;
+            let faturasPorCartao = {};
+
+            gastos.forEach((gasto) => {
+                const dataCompra = new Date(gasto.data + 'T00:00:00');
+                const dadosCartao = cartoes.find(c => c.nome === gasto.cartao);
+                const diaFechamento = dadosCartao ? parseInt(dadosCartao.fechamento) : 31;
+
+                let mesInicial = dataCompra.getMonth();
+                if (dataCompra.getDate() > diaFechamento) {
+                    mesInicial += 1;
+                }
+
+                const ehRecorrente = gasto.parcelas === 0;
+                const limiteParcelas = ehRecorrente ? 60 : gasto.parcelas; 
+                const valorParcela = ehRecorrente ? gasto.valor : (gasto.valor / gasto.parcelas);
+
+                for (let p = 0; p < limiteParcelas; p++) {
+                    let dataParcela = new Date(dataCompra.getFullYear(), mesInicial + p, 1);
+                    
+                    if (dataParcela.getFullYear() === anoSel && (dataParcela.getMonth() + 1) === mesSel) {
+                        totalGeralMundo += valorParcela;
+
+                        if (!faturasPorCartao[gasto.cartao]) {
+                            faturasPorCartao[gasto.cartao] = { total: 0, itens: [] };
+                        }
+
+                        faturasPorCartao[gasto.cartao].total += valorParcela;
+                        faturasPorCartao[gasto.cartao].itens.push({
+                            idBanco: gasto.id,
+                            descricao: gasto.descricao,
+                            dataCompra: gasto.data,
+                            parcelaTexto: ehRecorrente ? "Mensal" : `${p+1}/${gasto.parcelas}`,
+                            valor: valorParcela
+                        });
+                    }
+                }
+            });
+
+            document.getElementById('total-mes').innerText = `R$ ${totalGeralMundo.toFixed(2).replace('.', ',')}`;
+
+            if (Object.keys(faturasPorCartao).length === 0) {
+                container.innerHTML = `<p class="text-center text-sm text-gray-400 py-6">Nenhum gasto previsto para este mês.</p>`;
+                return;
+            }
+
+            for (let nomeCartao in faturasPorCartao) {
+                const fatura = faturasPorCartao[nomeCartao];
+                const estaAberto = !!faturasAbertas[nomeCartao];
+                
+                let htmlCartao = `
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <div onclick="alternarAbaFatura('${nomeCartao}')" class="p-4 bg-gray-50 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition border-b border-gray-100">
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400 text-xs">${estaAberto ? '▼' : '▶'}</span>
+                                <p class="font-bold text-gray-700">💳 ${nomeCartao}</p>
+                            </div>
+                            <p class="font-extrabold text-gray-800">R$ ${fatura.total.toFixed(2).replace('.', ',')}</p>
+                        </div>
+                        <div class="${estaAberto ? '' : 'hidden'} divide-y divide-gray-100 px-4 bg-white">
+                `;
+
+                fatura.itens.forEach(item => {
+                    htmlCartao += `
+                        <div class="py-3 flex justify-between items-center gap-2">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-semibold text-gray-800 text-sm truncate">${item.descricao} <span class="text-xs text-gray-400 font-normal">(${item.parcelaTexto})</span></p>
+                                <p class="text-xs text-gray-400 font-medium">Comprado em: ${formatarDataBR(item.dataCompra)}</p>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-gray-700 text-sm whitespace-nowrap">R$ ${item.valor.toFixed(2).replace('.', ',')}</span>
+                                <div class="flex gap-1">
+                                    <button onclick="editarGasto(${item.idBanco})" class="p-1 text-blue-500 hover:bg-blue-50 rounded text-xs">✏️</button>
+                                    <button onclick="excluirGasto(${item.idBanco})" class="p-1 text-red-500 hover:bg-red-50 rounded text-xs">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                htmlCartao += `</div></div>`;
+                container.innerHTML += htmlCartao;
+            }
+        }
+
+        // Inicia o app trazendo as informações da nuvem
+        window.onload = inicializarApp;
+    </script>
+</body>
+</html>
