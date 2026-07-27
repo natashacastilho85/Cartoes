@@ -1,0 +1,17 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    # Roda a cada 3 dias automaticamente (às 10h UTC)
+    - cron: "0 10 */3 * *"
+  workflow_dispatch: # Permite rodar manualmente se você quiser
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar o Supabase
+        run: |
+          curl -X GET 'https://zeyifguvywijucxprlgi.supabase.co/rest/v1/cartoes?select=id&limit=1' \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpleWlmZ3V2eXdpanVjeHBybGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTEyODAsImV4cCI6MjA5OTk4NzI4MH0.FGqEOvD4L5xZfxrViMao1sXGrwesJGKXdIj4CmPx4z8" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpleWlmZ3V2eXdpanVjeHBybGdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0MTEyODAsImV4cCI6MjA5OTk4NzI4MH0.FGqEOvD4L5xZfxrViMao1sXGrwesJGKXdIj4CmPx4z8"
